@@ -1,0 +1,67 @@
+
+name: Build AflatoonMubdi V2
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: "Select build mode"
+        required: true
+        type: choice
+        options:
+          - embedded-safe
+          - jailbreak
+        default: embedded-safe
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build AflatoonMubdi
+    runs-on: macos-14
+
+    env:
+      THEOS: ${{ github.workspace }}/theos
+      AP_BUILD_MODE: ${{ inputs.build_mode || 'embedded-safe' }}
+
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          brew install ldid
+          git clone --recursive https://github.com/theos/theos.git "$THEOS"
+
+      - name: Verify project files
+        run: |
+          test -f Makefile
+          echo "Project files found"
+          ls -la
+
+      - name: Clean project
+        run: |
+          make clean || true
+
+      - name: Build dylib
+        run: |
+          make FINALPACKAGE=1 AP_BUILD_MODE="$AP_BUILD_MODE"
+
+      - name: Locate dylib
+        run: |
+          mkdir -p output
+          find . -type f -name "AflatoonMubdi.dylib" \
+            -exec cp {} output/ \;
+          test -f output/AflatoonMubdi.dylib
+          file output/AflatoonMubdi.dylib
+
+      - name: Upload dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: AflatoonMubdi-${{ env.AP_BUILD_MODE }}
+          path: output/AflatoonMubdi.dylib
+          if-no-files-found: error
